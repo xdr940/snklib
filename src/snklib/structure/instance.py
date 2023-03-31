@@ -50,7 +50,7 @@ class Instance:
             self.time_position.append(json2dict(file))
 
         self.time_eISLs = []
-        eISLs_files = dir.files("*_eISLs.json")
+        eISLs_files = dir.files("*_eisls.json")
         eISLs_files.sort()
         for file in eISLs_files:
             self.time_eISLs.append(json2dict(file))
@@ -329,7 +329,7 @@ class Instance:
         for routes in  self.time_routes:
             conn_hop = []
             for route in routes:
-                if route['path'][-1] == route['dst']:
+                if route['path'][-1] == route['dst_sat']:
                     conn_hop.append(1)
                 else:
                     conn_hop.append(0)
