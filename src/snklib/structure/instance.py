@@ -13,6 +13,22 @@ class Instance:
             dir = Path(dir)
         self.dir=dir
 
+        # for OPNet
+        event_list_p= dir/"event_list.txt"
+        if event_list_p.exists():
+            self.event_list = []
+            lines = readlines(event_list_p)
+            for line in lines:
+                act,source_module,time,frame_type = line.split(' ')
+                event={
+                    "time":float(time),
+                    "source_module":source_module,
+                    "act":act
+                }
+                self.event_list.append(event)
+            self.event_list.sort(key=lambda x: x['time'])
+
+
         # header
         header_p = dir / "header.json"
         if header_p.exists():
@@ -31,13 +47,17 @@ class Instance:
 
         # STATIC DATA
         file = dir/'sats.json'
-        self.SATs = json2dict(file)
-
+        if file.exists():
+            self.SATs = json2dict(file)
+            self.matrix = np.zeros([len(self.SATs), len(self.SATs)])
+            idxs = list(range(len(self.SATs)))
+            self.sat2id = dict(zip(self.SATs, idxs))
 
 
 
         file = dir/'isls.json'
-        self.ISLs = json2dict(file)
+        if file.exists():
+            self.ISLs = json2dict(file)
 
 
 
@@ -50,7 +70,7 @@ class Instance:
             self.time_position.append(json2dict(file))
 
         self.time_eISLs = []
-        eISLs_files = dir.files("*_eisls.json")
+        eISLs_files = dir.files("*_eisls.json")+ dir.files("*_eISLs.json")
         eISLs_files.sort()
         for file in eISLs_files:
             self.time_eISLs.append(json2dict(file))
@@ -64,10 +84,7 @@ class Instance:
 
 
 
-        self.matrix = np.zeros([len(self.SATs), len(self.SATs)])
 
-        idxs = list(range(len(self.SATs)))
-        self.sat2id = dict(zip(self.SATs, idxs))
 
 
     # LEVEL1 for Scenarios
@@ -284,7 +301,7 @@ class Instance:
             conn_time_arr = []
             conn_geoDis = []
             for route in routes:
-                src, dst = route['src'], route['dst']
+                src, dst = route['src_sat'], route['dst_sat']
                 conn_srcs.append(self.time_position[idx][src])
                 conn_dsts.append(self.time_position[idx][dst])
                 conn_time_arr.append(time_stamp)
