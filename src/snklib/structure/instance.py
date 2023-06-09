@@ -6,6 +6,153 @@ import pymap3d as pm
 from ..utils import *
 
 
+def get_pkt(pkt_list,pkt_id):
+    for pkt in pkt_list:
+        if pkt_id == pkt['id']:
+            return pkt
+    return None
+
+def entity2xISL_id(src_node, src_module ,tgt_node, tgt_module,entity_type=None):
+    src_type,src_num = src_node.split('-')
+    tgt_type,tgt_num = tgt_node.split('-')
+
+    entity_id = None
+    if entity_type == 'FWD':
+        entity_id = "FWD-{}-{}".format(src_num, tgt_num)
+        return entity_id
+
+    if src_type == 'SAT' and tgt_type =='SAT':
+        if tgt_module in ['rx06']: #eISL
+            entity_id = "eISL-{}-{}".format(src_num, tgt_num)
+
+        elif src_module in ['tx02','tx03','tx04','tx05']: #sISL
+            entity_id = "ISL-{}-{}".format(src_num, tgt_num)
+
+        elif src_module in ['tx00','tx01']: #iISL
+            entity_id = "ISL-{}-{}".format(src_num, tgt_num)
+    elif src_type == 'GS' and tgt_type == 'SAT' :
+        entity_id = "GSL-{}-{}".format(src_num, tgt_num)
+
+    elif src_type == 'SAT' and tgt_type == 'GS':
+        entity_id = "GSL-{}-{}".format(tgt_num, src_num)
+
+    elif src_type == 'MS' and tgt_type == 'SAT' :
+        entity_id = "GSL-{}-{}".format(src_num, tgt_num)
+
+    elif src_type == 'SAT' and tgt_type == 'MS':
+        entity_id = "GSL-{}-{}".format(tgt_num, src_num)
+    if entity_id ==None:
+        print()
+        pass
+    return entity_id
+
+
+
+
+def event2animation(instance):
+    event_animation_map = instance.comm_config['event_animation_map']
+    pkt_type_color_map = instance.comm_config['pkt_type_color_map']
+    transiver_adj = instance.comm_config['transiver_adj']
+
+
+    animation_list = []
+    supp_info_dict = {}
+
+
+    start = datetime.datetime(year=2000, month=1, day=1, hour=0, minute=0, second=0)
+
+    for event in instance.event_list:
+        delta = datetime.timedelta(seconds=float(event['time']))
+
+        pkt_id = event['pkt_id']
+        pkt = get_pkt(instance.packet_list, pkt_id)
+        pkt_type = pkt['packet fields']['Type']
+
+        # node animation
+        if event['type'] in ['start_trans','end_trans','gen_data']:
+            animation = {
+                "time": "{}Z".format((start + delta).isoformat())
+            }
+
+            entity_id, module = event['source module'].split('.')
+            animation["entity"] = entity_id
+            animation["state"] = event_animation_map[event['type']]
+            animation_list.append(animation)
+
+
+
+
+            # eISLs
+            if event['type'] == 'start_trans':
+                animation = {
+                    "time": "{}Z".format((start + delta).isoformat())
+                }
+                src_node, src_module = event['source module'].split('.')
+                tgt_node, tgt_module = transiver_adj[event['target module']].split('.')
+
+                entity_id = entity2xISL_id(src_node, src_module, tgt_node, tgt_module)
+
+
+                animation["entity"] = entity_id
+                animation["state"] = 'ACTIVE'
+
+                animation_list.append(animation)
+
+
+        elif event['type'] in ['start_rec','end_rec']:
+
+            #  start rec node, end rec node
+            animation = {
+                "time": "{}Z".format((start + delta).isoformat())
+            }
+
+            entity_id, module = event['target module'].split('.')
+            animation["entity"] = entity_id
+            animation["state"] = event_animation_map[event['type']]
+            animation_list.append(animation)
+
+
+
+            # fwd , start rec fwd, end rec fwd
+            animation = {
+                "time": "{}Z".format((start + delta).isoformat())
+            }
+            src_node, src_module = event['source module'].split('.')
+            tgt_node, tgt_module = event['target module'].split('.')
+
+            entity_id = entity2xISL_id(src_node, src_module, tgt_node, tgt_module, entity_type='FWD')
+            animation["entity"] = entity_id
+
+            if event['type'] == 'start_rec':
+                animation["state"] = pkt_type_color_map[pkt_type]
+                animation["pkt_id"] = pkt_id
+                supp_info_dict[pkt_id] = "Type:{}".format(pkt_type)
+
+            else:
+                animation["pkt_id"] = pkt_id
+                animation["state"] = event_animation_map[event['type']]
+
+            animation_list.append(animation)
+
+
+
+            # end rec isl
+            if event['type'] == 'end_rec':
+                animation = {
+                    "time": "{}Z".format((start + delta).isoformat())
+                }
+                src_node, src_module = event['source module'].split('.')
+                tgt_node, tgt_module = event['target module'].split('.')
+
+                entity_id = entity2xISL_id(src_node, src_module, tgt_node, tgt_module)
+
+                animation["entity"] = entity_id
+                animation["state"] = 'DEACTIVE'
+                animation_list.append(animation)
+
+
+
+    return animation_list, supp_info_dict
 
 class Instance:
     def __init__(self,dir,delta=10):
@@ -14,20 +161,23 @@ class Instance:
         self.dir=dir
 
         # for OPNet
-        event_list_p= dir/"event_list.txt"
+        event_list_p= dir/"event_list.json"
         if event_list_p.exists():
-            self.event_list = []
-            lines = readlines(event_list_p)
-            for line in lines:
-                act,source_module,time,frame_type = line.split(' ')
-                event={
-                    "time":float(time),
-                    "source_module":source_module,
-                    "act":act
-                }
-                self.event_list.append(event)
+
+            self.event_list = json2dict(event_list_p)
+
             self.event_list.sort(key=lambda x: x['time'])
 
+        packet_list_p = dir/"packet_list.json"
+        if packet_list_p.exists():
+            self.packet_list = json2dict(packet_list_p)
+
+            self.packet_list.sort(key=lambda x: x['id'])
+
+
+        comm_p= dir/"comm.json"
+        if comm_p.exists():
+            self.comm_config = json2dict(comm_p)
 
         # header
         header_p = dir / "header.json"
@@ -81,9 +231,6 @@ class Instance:
         self.time_routes=[]
         for file in route_files:
             self.time_routes.append(json2dict(file))
-
-
-
 
 
 
