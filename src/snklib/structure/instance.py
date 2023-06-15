@@ -12,37 +12,37 @@ def get_pkt(pkt_list,pkt_id):
             return pkt
     return None
 
-def entity2xISL_id(src_node, src_module ,tgt_node, tgt_module,entity_type=None):
+def entity2xISL_id(src_node, src_module ,dst_node, dst_module,entity_type=None):
     src_type,src_num = src_node.split('-')
-    tgt_type,tgt_num = tgt_node.split('-')
+    dst_type,dst_num = dst_node.split('-')
 
     entity_id = None
     if entity_type == 'FWD':
-        entity_id = "FWD-{}-{}".format(src_num, tgt_num)
+        entity_id = "FWD-{}-{}".format(src_num, dst_num)
         return entity_id
 
-    if src_type == 'SAT' and tgt_type =='SAT':
-        if tgt_module in ['rx06']: #eISL
-            entity_id = "eISL-{}-{}".format(src_num, tgt_num)
+    if src_type == 'SAT' and dst_type =='SAT':
+        if dst_module in ['rx06']: #eISL
+            entity_id = "eISL-{}-{}".format(src_num, dst_num)
 
-        elif src_module in ['tx02','tx03','tx04','tx05']: #sISL
-            entity_id = "ISL-{}-{}".format(src_num, tgt_num)
+        elif dst_module in ['rx02','rx03','rx04','rx05']: #sISL
+            entity_id = "ISL-{}-{}".format(src_num, dst_num)
 
-        elif src_module in ['tx00','tx01']: #iISL
-            entity_id = "ISL-{}-{}".format(src_num, tgt_num)
-    elif src_type == 'GS' and tgt_type == 'SAT' :
-        entity_id = "GSL-{}-{}".format(src_num, tgt_num)
+        elif dst_module in ['rx00','rx01']: #iISL
+            entity_id = "ISL-{}-{}".format(src_num, dst_num)
+    elif src_type == 'GS' and dst_type == 'SAT' :
+        entity_id = "GSL-{}-{}".format(src_num, dst_num)
 
-    elif src_type == 'SAT' and tgt_type == 'GS':
-        entity_id = "GSL-{}-{}".format(tgt_num, src_num)
+    elif src_type == 'SAT' and dst_type == 'GS':
+        entity_id = "GSL-{}-{}".format(dst_num, src_num)
 
-    elif src_type == 'MS' and tgt_type == 'SAT' :
-        entity_id = "GSL-{}-{}".format(src_num, tgt_num)
+    elif src_type == 'MS' and dst_type == 'SAT' :
+        entity_id = "MSL-{}-{}".format(src_num, dst_num)
 
-    elif src_type == 'SAT' and tgt_type == 'MS':
-        entity_id = "GSL-{}-{}".format(tgt_num, src_num)
+    elif src_type == 'SAT' and dst_type == 'MS':
+        entity_id = "MSL-{}-{}".format(dst_num, src_num)
     if entity_id ==None:
-        print()
+        print('none entity')
         pass
     return entity_id
 
@@ -88,9 +88,9 @@ def event2animation(instance):
                     "time": "{}Z".format((start + delta).isoformat())
                 }
                 src_node, src_module = event['source module'].split('.')
-                tgt_node, tgt_module = transiver_adj[event['target module']].split('.')
+                dst_node, dst_module = transiver_adj[event['target module']].split('.')
 
-                entity_id = entity2xISL_id(src_node, src_module, tgt_node, tgt_module)
+                entity_id = entity2xISL_id(src_node, src_module, dst_node, dst_module)
 
 
                 animation["entity"] = entity_id
