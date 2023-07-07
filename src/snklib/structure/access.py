@@ -10,10 +10,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.interpolate import interp1d as interp
 from tqdm import tqdm
-import datetime
+from datetime import datetime
 
 from ..utils import eci2ecef_np
-
+from ..common import *
 
 class Access:
     def __init__(
@@ -24,8 +24,8 @@ class Access:
             borderDistance=None,
             dynamic_threshold=False
     ):
-        self.start_time = start_time or datetime.datetime(2000,1,1)
-        self.end_time = end_time or datetime.datetime(2000,1,2)
+        self.start_time = start_time or datetime(2000,1,1)
+        self.end_time = end_time or datetime(2000,1,2)
         self.time_step = time_step or 300
 
         self.duration_sec = int((end_time - start_time).total_seconds())
@@ -50,7 +50,7 @@ class Access:
 
         #post configs (dynamic border)
 
-        self.Re = 6371137 # earth radius
+        self.Re = Re # earth radius
         num_orbits = 20
         h =550000
         # self.max_border = 2 *3.14*(self.Re + h)/num_orbits
@@ -82,35 +82,38 @@ class Access:
         # self.gs_position_homo = [self.gs_position] * 293
         # self.gs_position_homo = np.array(self.gs_position_homo)
         self.gs_id = gs['id']
-    def load_ac(self,ac):
-        start,end = ac['availability'].split('/')
-        start =  datetime.datetime.strptime(start,'%Y-%m-%dT%H:%M:%SZ')
-        end =  datetime.datetime.strptime(end,'%Y-%m-%dT%H:%M:%SZ')
+    def load_ms(self,ms):
+        start_time , end_time= ms['availability'].split('/')
 
-        duration_sec = (end-start).seconds
+        start_time =  datetime.fromisoformat(start_time)
+        end_time =  datetime.fromisoformat(end_time)
+
+
+        duration_sec = (end_time-start_time).seconds
         self.duration_sec = duration_sec
-        length = int(len( np.array(ac['position']['cartesian']))/4)
-        ac_positions = np.array(ac['position']['cartesian']).reshape([length,4])
-        time_stamp = ac_positions[:,0]
+        length = int(len( np.array(ms['position']['cartesian']))/4)
+        ms_positions = np.array(ms['position']['cartesian']).reshape([length,4])
+
+        time_stamp = ms_positions[:,0]
         pass
-        ac_fx = interp(time_stamp, ac_positions[:, 1], 'cubic')
-        ac_fy = interp(time_stamp, ac_positions[:, 2], 'cubic')
-        ac_fz = interp(time_stamp, ac_positions[:, 3], 'cubic')
+        ms_fx = interp(time_stamp, ms_positions[:, 1], 'cubic')
+        ms_fy = interp(time_stamp, ms_positions[:, 2], 'cubic')
+        ms_fz = interp(time_stamp, ms_positions[:, 3], 'cubic')
 
         self.full_time = np.linspace(start=0,stop=duration_sec,num=duration_sec+1)
 
-        fullx = ac_fx(self.full_time)
-        fully = ac_fy(self.full_time)
-        fullz = ac_fz(self.full_time)
+        fullx = ms_fx(self.full_time)
+        fully = ms_fy(self.full_time)
+        fullz = ms_fz(self.full_time)
         fullx = np.expand_dims(fullx,0)
         fully = np.expand_dims(fully,0)
         fullz = np.expand_dims(fullz,0)
-        self.ac_pos = np.concatenate([fullx,fully,fullz],0).T
+        self.ms_pos = np.concatenate([fullx,fully,fullz],0).T
 
 
-        self.ac_id = ac['id']
+        self.ms_id = ms['id']
 
-    def range_log_ac(self):
+    def range_log_ms(self):
 
         fullx = self.sat_fx(self.full_time)
         fully = self.sat_fy(self.full_time)
@@ -118,14 +121,14 @@ class Access:
         sat_position = np.concatenate([np.expand_dims(fullx,1),np.expand_dims(fully,1),np.expand_dims(fullz,1)],1)
 
 
-        ref = sat_position - self.ac_pos
+        ref = sat_position - self.ms_pos
         dis = ref ** 2
         dis = np.sum(dis, axis=1)
         dis = dis ** 0.5
         # tmp/=1000
         mask = dis < self.borderDistance
         if np.sum(mask) > 0:  # range in
-            range_name = (self.ac_id, self.sat_id)
+            range_name = (self.ms_id, self.sat_id)
             # self.ranges[range_name] = tmp
 
             # caculate in out instant
@@ -276,9 +279,9 @@ class Access:
         :return: self.access_stamps
         '''
         self.load_sat(sat)
-        for ac in mses:
-            self.load_ac(ac)
-            self.range_log_ac()# calculate stamp
+        for ms in mses:
+            self.load_ms(ms)
+            self.range_log_ms()# calculate stamp
 
 
 
